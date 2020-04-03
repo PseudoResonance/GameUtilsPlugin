@@ -63,12 +63,12 @@ public class MCCommand implements Command {
 								previousNames.put(usernameHistory.getJsonObject(i).getString("username"), date);
 							}
 						} catch (JsonException ex) {
-							e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("gameutils.invalidMinecraftAccount")).queue();
+							e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
 							return;
 						}
 					}
 				} catch (Exception ex) {
-					e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("gameutils.invalidMinecraftAccount")).queue();
+					e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
 					ex.printStackTrace();
 					return;
 				}
@@ -81,32 +81,32 @@ public class MCCommand implements Command {
 				sendMessage(uuid, name, previousNames, e);
 			}
 		} else {
-			e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("gameutils.invalidMinecraftAccount")).queue();
+			e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
 		}
 	}
 
 	private static void sendMessage(String uuid, String name, LinkedHashMap<String, LocalDateTime> previousNames, MessageReceivedEvent e) {
 		EmbedBuilder build = new EmbedBuilder();
-		build.setTitle(LanguageManager.getLanguage(e).getMessage("gameutils.minecraftAccountDetails", LanguageManager.escape(name)), "https://namemc.com/profile/" + uuid);
+		build.setTitle(LanguageManager.getLanguage(e).getMessage("minecraft.minecraftAccountDetails", LanguageManager.escape(name)), "https://namemc.com/profile/" + uuid);
 		build.setColor(new Color(0, 255, 0));
 		build.setImage("https://visage.surgeplay.com/full/512/" + uuid + ".png");
-		build.appendDescription(LanguageManager.getLanguage(e).getMessage("gameutils.uuid", uuid));
+		build.appendDescription(LanguageManager.getLanguage(e).getMessage("minecraft.uuid", uuid));
 		if (previousNames.size() > 0) {
 			String prevNamesStr = "";
 			Iterator<Entry<String, LocalDateTime>> iter = previousNames.entrySet().iterator();
 			while (iter.hasNext()) {
 				Entry<String, LocalDateTime> entry = iter.next();
-				prevNamesStr += LanguageManager.getLanguage(e).getMessage("gameutils.previousNameEntry", LanguageManager.escape(entry.getKey()), LanguageManager.getLanguage(e).formatDateTime(entry.getValue()));
+				prevNamesStr += LanguageManager.getLanguage(e).getMessage("minecraft.previousNameEntry", LanguageManager.escape(entry.getKey()), LanguageManager.getLanguage(e).formatDateTime(entry.getValue()));
 				if (iter.hasNext())
 					prevNamesStr += "\n";
 			}
-			build.addField(LanguageManager.getLanguage(e).getMessage("gameutils.previousNames"), prevNamesStr, false);
+			build.addField(LanguageManager.getLanguage(e).getMessage("minecraft.previousNames"), prevNamesStr, false);
 		}
 		e.getChannel().sendMessage(build.build()).queue();
 	}
 
 	public String getDesc(long id) {
-		return LanguageManager.getLanguage(id).getMessage("gameutils.mcCommandDescription");
+		return LanguageManager.getLanguage(id).getMessage("minecraft.mcCommandDescription");
 	}
 
 	public boolean isHidden() {
