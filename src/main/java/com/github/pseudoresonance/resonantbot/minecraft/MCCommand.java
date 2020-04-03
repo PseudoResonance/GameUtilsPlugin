@@ -1,4 +1,4 @@
-package com.github.pseudoresonance.resonantbot.gameutils;
+package com.github.pseudoresonance.resonantbot.minecraft;
 
 import java.awt.Color;
 import java.io.InputStream;
