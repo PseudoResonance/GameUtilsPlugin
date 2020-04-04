@@ -35,16 +35,10 @@ public class MCCommand {
 	private static CommandHandler cmd = null;
 	
 	private static ConcurrentHashMap<String, MCPlayer> players = new ConcurrentHashMap<String, MCPlayer>();
-	
-	private static long lastPurge = 0;
 
 	public static void setup(Plugin plugin) {
 		cmd = new CommandHandler("minecraft", "minecraft.mcCommandDescription");
 		cmd.registerSubcommand("player", (e, command, args) -> {
-			if (System.nanoTime() - lastPurge > 43200000000000L) {
-				lastPurge = System.nanoTime();
-				purge();
-			}
 			if (args.length > 0) {
 				String uuid = "";
 				String name = "";
@@ -138,9 +132,11 @@ public class MCCommand {
 	}
 	
 	public static void purge() {
-		for (String name : players.keySet()) {
-			if (players.get(name).isExpired())
-				players.remove(name);
+		Iterator<Entry<String, MCPlayer>> iter = players.entrySet().iterator();
+		while (iter.hasNext()) {
+			Entry<String, MCPlayer> n = iter.next();
+			if (n.getValue().isExpired())
+				iter.remove();
 		}
 	}
 	
