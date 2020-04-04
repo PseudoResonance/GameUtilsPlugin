@@ -9,7 +9,9 @@ import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import javax.json.Json;
@@ -19,73 +21,84 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 import javax.net.ssl.HttpsURLConnection;
 
-import com.github.pseudoresonance.resonantbot.api.Command;
+import com.github.pseudoresonance.resonantbot.api.CommandHandler;
+import com.github.pseudoresonance.resonantbot.api.Plugin;
 import com.github.pseudoresonance.resonantbot.apiplugin.Expirable;
 import com.github.pseudoresonance.resonantbot.language.LanguageManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 
-public class MCCommand implements Command {
+public class MCCommand {
+
+	private static CommandHandler cmd = null;
 	
 	private static ConcurrentHashMap<String, MCPlayer> players = new ConcurrentHashMap<String, MCPlayer>();
 	
 	private static long lastPurge = 0;
 
-	public void onCommand(MessageReceivedEvent e, String command, String[] args) {
-		if (System.nanoTime() - lastPurge > 43200000000000L) {
-			lastPurge = System.nanoTime();
-			purge();
-		}
-		if (args.length > 0) {
-			String uuid = "";
-			String name = "";
-			LinkedHashMap<String, LocalDateTime> previousNames = new LinkedHashMap<String, LocalDateTime>();
-			MCPlayer player = getPlayer(args[0]);
-			if (player == null) {
-				try {
-					URL url = new URL("https://api.ashcon.app/mojang/v2/user/" + args[0]);
-					HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
-					try (InputStream in = connection.getInputStream()) {
-						try (JsonReader jr = Json.createReader(in)) {
-							JsonObject jo = jr.readObject();
-							uuid = jo.getString("uuid");
-							name = jo.getString("username");
-							JsonArray usernameHistory = jo.getJsonArray("username_history");
-							int min = 0, max = usernameHistory.size();
-							if (max > 6)
-								min = max - 6;
-							for (int i = max - 2; i >= min; i--) {
-								JsonObject entry = usernameHistory.getJsonObject(i + 1);
-								LocalDateTime date = null;
-								if (entry.containsKey("changed_at"))
-									date = Instant.parse(entry.getString("changed_at")).atZone(ZoneId.systemDefault()).toLocalDateTime();
-								previousNames.put(usernameHistory.getJsonObject(i).getString("username"), date);
+	public static void setup(Plugin plugin) {
+		cmd = new CommandHandler("minecraft", "minecraft.mcCommandDescription");
+		cmd.registerSubcommand("player", (e, command, args) -> {
+			if (System.nanoTime() - lastPurge > 43200000000000L) {
+				lastPurge = System.nanoTime();
+				purge();
+			}
+			if (args.length > 0) {
+				String uuid = "";
+				String name = "";
+				LinkedHashMap<String, LocalDateTime> previousNames = new LinkedHashMap<String, LocalDateTime>();
+				MCPlayer player = getPlayer(args[0]);
+				CompletableFuture<Message> placeholder = null;
+				if (player == null) {
+					placeholder = e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("main.fetchingData")).submit();
+					try {
+						URL url = new URL("https://api.ashcon.app/mojang/v2/user/" + args[0]);
+						HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+						try (InputStream in = connection.getInputStream()) {
+							try (JsonReader jr = Json.createReader(in)) {
+								JsonObject jo = jr.readObject();
+								uuid = jo.getString("uuid");
+								name = jo.getString("username");
+								JsonArray usernameHistory = jo.getJsonArray("username_history");
+								int min = 0, max = usernameHistory.size();
+								if (max > 6)
+									min = max - 6;
+								for (int i = max - 2; i >= min; i--) {
+									JsonObject entry = usernameHistory.getJsonObject(i + 1);
+									LocalDateTime date = null;
+									if (entry.containsKey("changed_at"))
+										date = Instant.parse(entry.getString("changed_at")).atZone(ZoneId.systemDefault()).toLocalDateTime();
+									previousNames.put(usernameHistory.getJsonObject(i).getString("username"), date);
+								}
+							} catch (JsonException ex) {
+								e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
+								return true;
 							}
-						} catch (JsonException ex) {
-							e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
-							return;
 						}
+					} catch (Exception ex) {
+						e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
+						ex.printStackTrace();
+						return true;
 					}
-				} catch (Exception ex) {
-					e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
-					ex.printStackTrace();
-					return;
+				} else {
+					sendMessage(placeholder, player.getUUID(), player.getName(), player.getPreviousNames(), e);
+				}
+				if (!uuid.equals("") && !name.equals("")) {
+					player = new MCPlayer(uuid, name, previousNames);
+					players.put(name.toLowerCase(), player);
+					sendMessage(placeholder, uuid, name, previousNames, e);
 				}
 			} else {
-				sendMessage(player.getUUID(), player.getName(), player.getPreviousNames(), e);
+				e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
 			}
-			if (!uuid.equals("") && !name.equals("")) {
-				player = new MCPlayer(uuid, name, previousNames);
-				players.put(name.toLowerCase(), player);
-				sendMessage(uuid, name, previousNames, e);
-			}
-		} else {
-			e.getChannel().sendMessage(LanguageManager.getLanguage(e).getMessage("minecraft.invalidMinecraftAccount")).queue();
-		}
+			return true;
+		});
+		cmd.register(plugin);
 	}
 
-	private static void sendMessage(String uuid, String name, LinkedHashMap<String, LocalDateTime> previousNames, MessageReceivedEvent e) {
+	private static void sendMessage(CompletableFuture<Message> placeholder, String uuid, String name, LinkedHashMap<String, LocalDateTime> previousNames, MessageReceivedEvent e) {
 		EmbedBuilder build = new EmbedBuilder();
 		build.setTitle(LanguageManager.getLanguage(e).getMessage("minecraft.minecraftAccountDetails", LanguageManager.escape(name)), "https://namemc.com/profile/" + uuid);
 		build.setColor(new Color(0, 255, 0));
@@ -102,15 +115,15 @@ public class MCCommand implements Command {
 			}
 			build.addField(LanguageManager.getLanguage(e).getMessage("minecraft.previousNames"), prevNamesStr, false);
 		}
-		e.getChannel().sendMessage(build.build()).queue();
-	}
-
-	public String getDesc(long id) {
-		return LanguageManager.getLanguage(id).getMessage("minecraft.mcCommandDescription");
-	}
-
-	public boolean isHidden() {
-		return false;
+		if (placeholder != null) {
+			try {
+				Message msg = placeholder.get();
+				msg.editMessage(build.build()).override(true).queue();
+			} catch (InterruptedException | ExecutionException ex) {
+				e.getChannel().sendMessage(build.build()).queue();
+			}
+		} else
+			e.getChannel().sendMessage(build.build()).queue();
 	}
 	
 	public static MCPlayer getPlayer(String name) {
@@ -131,7 +144,7 @@ public class MCCommand implements Command {
 		}
 	}
 	
-	public class MCPlayer extends Expirable {
+	public static class MCPlayer extends Expirable {
 		
 		private final String uuid;
 		private final String name;
