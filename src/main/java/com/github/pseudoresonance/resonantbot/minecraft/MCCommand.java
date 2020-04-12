@@ -37,7 +37,7 @@ public class MCCommand {
 	private static ConcurrentHashMap<String, MCPlayer> players = new ConcurrentHashMap<String, MCPlayer>();
 
 	public static void setup(Plugin plugin) {
-		cmd = new CommandHandler("minecraft", "minecraft.mcCommandDescription");
+		cmd = new CommandHandler("minecraft", "minecraft.mcCommandDescription", "mc");
 		cmd.registerSubcommand("player", (e, command, args) -> {
 			if (args.length > 0) {
 				String uuid = "";
